@@ -1,0 +1,1048 @@
+v1
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.Random;
+
+public class JuegoDeNavesSwing extends JPanel implements KeyListener, ActionListener {
+
+    // Tamaño del mapa
+    static final int FILAS = 10;
+    static final int COLS = 10;
+    static final int TILE_SIZE = 40;
+
+    Nave nave;
+    ArrayList<Enemigo> enemigos = new ArrayList<>();
+    ArrayList<Disparo> disparos = new ArrayList<>();
+
+    Timer timer;
+
+    public JuegoDeNavesSwing() {
+        this.setPreferredSize(new Dimension(COLS * TILE_SIZE, FILAS * TILE_SIZE + 30));
+        this.setBackground(Color.BLACK);
+        this.setFocusable(true);
+        this.addKeyListener(this);
+
+        // Crear nave en centro
+        nave = new Nave(COLS / 2, FILAS / 2);
+
+        // Crear enemigos
+        Random rand = new Random();
+        for (int i = 0; i < 5; i++) {
+            int ex, ey;
+            do {
+                ex = rand.nextInt(COLS);
+                ey = rand.nextInt(FILAS);
+            } while ((ex == nave.x && ey == nave.y) || enemigoEnPosicion(ex, ey));
+            enemigos.add(new Enemigo(ex, ey));
+        }
+
+        // Timer para refrescar pantalla y mover disparos
+        timer = new Timer(100, this); // 100ms
+        timer.start();
+    }
+
+    private boolean enemigoEnPosicion(int x, int y) {
+        for (Enemigo e : enemigos) {
+            if (e.x == x && e.y == y) return true;
+        }
+        return false;
+    }
+
+    @Override
+    public void paintComponent(Graphics g) {
+        super.paintComponent(g);
+
+        // Dibujar rejilla
+        g.setColor(Color.GRAY);
+        for (int i = 0; i <= FILAS; i++) {
+            g.drawLine(0, i * TILE_SIZE, COLS * TILE_SIZE, i * TILE_SIZE);
+        }
+        for (int i = 0; i <= COLS; i++) {
+            g.drawLine(i * TILE_SIZE, 0, i * TILE_SIZE, FILAS * TILE_SIZE);
+        }
+
+        // Dibujar enemigos
+        for (Enemigo e : enemigos) {
+            g.setColor(Color.RED);
+            g.fillOval(e.x * TILE_SIZE + 8, e.y * TILE_SIZE + 8, TILE_SIZE - 16, TILE_SIZE - 16);
+        }
+
+        // Dibujar disparos
+        g.setColor(Color.YELLOW);
+        for (Disparo d : disparos) {
+            g.fillRect(d.x * TILE_SIZE + TILE_SIZE / 3, d.y * TILE_SIZE + TILE_SIZE / 3, TILE_SIZE / 3, TILE_SIZE / 3);
+        }
+
+        // Dibujar nave
+        g.setColor(Color.CYAN);
+        g.fillRect(nave.x * TILE_SIZE + 5, nave.y * TILE_SIZE + 5, TILE_SIZE - 10, TILE_SIZE - 10);
+
+        // Dibujar vida
+        g.setColor(Color.WHITE);
+        g.drawString("Vida: " + nave.vida, 10, FILAS * TILE_SIZE + 20);
+
+        if (nave.vida <= 0) {
+            g.setColor(Color.RED);
+            g.setFont(new Font("Arial", Font.BOLD, 30));
+            g.drawString("GAME OVER", COLS * TILE_SIZE / 3, FILAS * TILE_SIZE / 2);
+            timer.stop();
+        }
+    }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+        if (nave.vida <= 0) return;
+
+        int key = e.getKeyCode();
+
+        int nx = nave.x;
+        int ny = nave.y;
+
+        if (key == KeyEvent.VK_LEFT) {
+            nx = Math.max(0, nave.x - 1);
+        } else if (key == KeyEvent.VK_RIGHT) {
+            nx = Math.min(COLS - 1, nave.x + 1);
+        } else if (key == KeyEvent.VK_UP) {
+            ny = Math.max(0, nave.y - 1);
+        } else if (key == KeyEvent.VK_DOWN) {
+            ny = Math.min(FILAS - 1, nave.y + 1);
+        } else if (key == KeyEvent.VK_SPACE) {
+            // Disparar
+            disparos.add(new Disparo(nave.x, nave.y - 1)); // dispara hacia arriba
+        }
+
+        // Mover nave y checar colision con enemigo
+        if (nx != nave.x || ny != nave.y) {
+            nave.x = nx;
+            nave.y = ny;
+            Iterator<Enemigo> it = enemigos.iterator();
+            while (it.hasNext()) {
+                Enemigo e_ = it.next();
+                if (e_.x == nave.x && e_.y == nave.y) {
+                    nave.vida--;
+                    it.remove();
+                    System.out.println("La nave recibió daño! Vida: " + nave.vida);
+                }
+            }
+        }
+
+        repaint();
+    }
+
+    @Override
+    public void keyReleased(KeyEvent e) {
+        // No usado
+    }
+
+    @Override
+    public void keyTyped(KeyEvent e) {
+        // No usado
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        // Mover disparos hacia arriba
+        Iterator<Disparo> it = disparos.iterator();
+        while (it.hasNext()) {
+            Disparo d = it.next();
+            d.y--;
+            if (d.y < 0) {
+                it.remove();
+                continue;
+            }
+
+            // Checar colision con enemigos
+            Iterator<Enemigo> itE = enemigos.iterator();
+            while (itE.hasNext()) {
+                Enemigo en = itE.next();
+                if (en.x == d.x && en.y == d.y) {
+                    itE.remove();
+                    it.remove();
+                    break;
+                }
+            }
+        }
+
+        repaint();
+    }
+
+    // Clases para nave, enemigo y disparo
+
+    static class Nave {
+        int x, y;
+        int vida = 3;
+
+        public Nave(int x, int y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    static class Enemigo {
+        int x, y;
+
+        public Enemigo(int x, int y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    static class Disparo {
+        int x, y;
+
+        public Disparo(int x, int y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    // Método main para correr el juego
+    public static void main(String[] args) {
+        JFrame frame = new JFrame("Juego de Naves");
+        JuegoDeNavesSwing juego = new JuegoDeNavesSwing();
+        frame.add(juego);
+        frame.pack();
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setLocationRelativeTo(null);
+        frame.setVisible(true);
+    }
+}
+
+
+
+v2
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.Random;
+
+public class JuegoDeNavesSwing extends JPanel implements KeyListener, ActionListener {
+
+    static final int FILAS = 10;
+    static final int COLS = 10;
+    static final int TILE_SIZE = 40;
+
+    Nave nave;
+    ArrayList<Enemigo> enemigos = new ArrayList<>();
+    ArrayList<Disparo> disparos = new ArrayList<>();
+    ArrayList<Disparo> disparosEnemigos = new ArrayList<>();
+
+    Timer timer;         // refresco general
+    Timer timerEnemigos; // para mover y disparar enemigos cada 1s
+
+    Random rand = new Random();
+
+    public JuegoDeNavesSwing() {
+        this.setPreferredSize(new Dimension(COLS * TILE_SIZE, FILAS * TILE_SIZE + 30));
+        this.setBackground(Color.BLACK);
+        this.setFocusable(true);
+        this.addKeyListener(this);
+
+        nave = new Nave(COLS / 2, FILAS / 2);
+
+        // Generar enemigos en posiciones aleatorias
+        for (int i = 0; i < 5; i++) {
+            int ex, ey;
+            do {
+                ex = rand.nextInt(COLS);
+                ey = rand.nextInt(FILAS);
+            } while ((ex == nave.x && ey == nave.y) || enemigoEnPosicion(ex, ey));
+            enemigos.add(new Enemigo(ex, ey));
+        }
+
+        timer = new Timer(100, this);
+        timer.start();
+
+        timerEnemigos = new Timer(1000, e -> {
+            moverEnemigos();
+            enemigosDisparan();
+            repaint();
+        });
+        timerEnemigos.start();
+    }
+
+    private boolean enemigoEnPosicion(int x, int y) {
+        for (Enemigo e : enemigos) {
+            if (e.x == x && e.y == y) return true;
+        }
+        return false;
+    }
+
+    @Override
+    public void paintComponent(Graphics g) {
+        super.paintComponent(g);
+
+        // Dibujar rejilla
+        g.setColor(Color.GRAY);
+        for (int i = 0; i <= FILAS; i++) {
+            g.drawLine(0, i * TILE_SIZE, COLS * TILE_SIZE, i * TILE_SIZE);
+        }
+        for (int i = 0; i <= COLS; i++) {
+            g.drawLine(i * TILE_SIZE, 0, i * TILE_SIZE, FILAS * TILE_SIZE);
+        }
+
+        // Dibujar enemigos
+        g.setColor(Color.RED);
+        for (Enemigo e : enemigos) {
+            g.fillOval(e.x * TILE_SIZE + 8, e.y * TILE_SIZE + 8, TILE_SIZE - 16, TILE_SIZE - 16);
+        }
+
+        // Dibujar disparos enemigos
+        g.setColor(Color.ORANGE);
+        for (Disparo d : disparosEnemigos) {
+            g.fillRect(d.x * TILE_SIZE + TILE_SIZE / 3, d.y * TILE_SIZE + TILE_SIZE / 3, TILE_SIZE / 3, TILE_SIZE / 3);
+        }
+
+        // Dibujar disparos nave
+        g.setColor(Color.YELLOW);
+        for (Disparo d : disparos) {
+            g.fillRect(d.x * TILE_SIZE + TILE_SIZE / 3, d.y * TILE_SIZE + TILE_SIZE / 3, TILE_SIZE / 3, TILE_SIZE / 3);
+        }
+
+        // Dibujar nave con orientación
+        drawNave(g, nave.x, nave.y, nave.direccion);
+
+        // Vida
+        g.setColor(Color.WHITE);
+        g.drawString("Vida: " + nave.vida, 10, FILAS * TILE_SIZE + 20);
+
+        if (nave.vida <= 0) {
+            g.setColor(Color.RED);
+            g.setFont(new Font("Arial", Font.BOLD, 30));
+            g.drawString("GAME OVER", COLS * TILE_SIZE / 3, FILAS * TILE_SIZE / 2);
+            timer.stop();
+            timerEnemigos.stop();
+        } else if (enemigos.isEmpty()) {
+            g.setColor(Color.GREEN);
+            g.setFont(new Font("Arial", Font.BOLD, 30));
+            g.drawString("¡GANASTE!", COLS * TILE_SIZE / 3, FILAS * TILE_SIZE / 2);
+            timer.stop();
+            timerEnemigos.stop();
+        }
+    }
+
+    private void drawNave(Graphics g, int x, int y, int direccion) {
+        // Dibuja la nave como un triángulo que apunta según dirección
+        int cx = x * TILE_SIZE + TILE_SIZE / 2;
+        int cy = y * TILE_SIZE + TILE_SIZE / 2;
+        int size = TILE_SIZE / 2;
+
+        Polygon p = new Polygon();
+        switch (direccion) {
+            case 0: // arriba
+                p.addPoint(cx, cy - size / 2);
+                p.addPoint(cx - size / 2, cy + size / 2);
+                p.addPoint(cx + size / 2, cy + size / 2);
+                break;
+            case 1: // derecha
+                p.addPoint(cx + size / 2, cy);
+                p.addPoint(cx - size / 2, cy - size / 2);
+                p.addPoint(cx - size / 2, cy + size / 2);
+                break;
+            case 2: // abajo
+                p.addPoint(cx, cy + size / 2);
+                p.addPoint(cx - size / 2, cy - size / 2);
+                p.addPoint(cx + size / 2, cy - size / 2);
+                break;
+            case 3: // izquierda
+                p.addPoint(cx - size / 2, cy);
+                p.addPoint(cx + size / 2, cy - size / 2);
+                p.addPoint(cx + size / 2, cy + size / 2);
+                break;
+        }
+        g.setColor(Color.CYAN);
+        g.fillPolygon(p);
+    }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+        if (nave.vida <= 0 || enemigos.isEmpty()) return;
+
+        int key = e.getKeyCode();
+
+        int nx = nave.x;
+        int ny = nave.y;
+
+        if (key == KeyEvent.VK_LEFT) {
+            nx = Math.max(0, nave.x - 1);
+        } else if (key == KeyEvent.VK_RIGHT) {
+            nx = Math.min(COLS - 1, nave.x + 1);
+        } else if (key == KeyEvent.VK_UP) {
+            ny = Math.max(0, nave.y - 1);
+        } else if (key == KeyEvent.VK_DOWN) {
+            ny = Math.min(FILAS - 1, nave.y + 1);
+        } else if (key == KeyEvent.VK_Q) {
+            // Girar izquierda
+            nave.direccion = (nave.direccion + 3) % 4;
+        } else if (key == KeyEvent.VK_E) {
+            // Girar derecha
+            nave.direccion = (nave.direccion + 1) % 4;
+        } else if (key == KeyEvent.VK_SPACE) {
+            // Disparar en dirección actual
+            int dx = 0, dy = 0;
+            switch (nave.direccion) {
+                case 0: dy = -1; break; // arriba
+                case 1: dx = 1; break;  // derecha
+                case 2: dy = 1; break;  // abajo
+                case 3: dx = -1; break; // izquierda
+            }
+            int disparoX = nave.x + dx;
+            int disparoY = nave.y + dy;
+            if (disparoX >= 0 && disparoX < COLS && disparoY >= 0 && disparoY < FILAS) {
+                disparos.add(new Disparo(disparoX, disparoY, dx, dy));
+            }
+        }
+
+        // Mover nave y checar colisión
+        if (nx != nave.x || ny != nave.y) {
+            nave.x = nx;
+            nave.y = ny;
+            Iterator<Enemigo> it = enemigos.iterator();
+            while (it.hasNext()) {
+                Enemigo enem = it.next();
+                if (enem.x == nave.x && enem.y == nave.y) {
+                    nave.vida--;
+                    it.remove();
+                    System.out.println("La nave recibió daño! Vida: " + nave.vida);
+                }
+            }
+        }
+
+        repaint();
+    }
+
+    private void moverEnemigos() {
+        for (Enemigo e : enemigos) {
+            int dir = rand.nextInt(4);
+            int nx = e.x;
+            int ny = e.y;
+            switch (dir) {
+                case 0: ny = Math.max(0, e.y - 1); break; // arriba
+                case 1: nx = Math.min(COLS - 1, e.x + 1); break; // derecha
+                case 2: ny = Math.min(FILAS - 1, e.y + 1); break; // abajo
+                case 3: nx = Math.max(0, e.x - 1); break; // izquierda
+            }
+            // No se mueve a posición ocupada por otro enemigo ni la nave
+            boolean ocupado = false;
+            for (Enemigo otro : enemigos) {
+                if (otro != e && otro.x == nx && otro.y == ny) {
+                    ocupado = true;
+                    break;
+                }
+            }
+            if (!ocupado && !(nx == nave.x && ny == nave.y)) {
+                e.x = nx;
+                e.y = ny;
+            }
+
+            // Al mover, si colisiona con nave pierde vida la nave y enemigo se elimina
+            if (e.x == nave.x && e.y == nave.y) {
+                nave.vida--;
+                enemigos.remove(e);
+                System.out.println("La nave fue dañada por contacto enemigo! Vida: " + nave.vida);
+                break; // evitar ConcurrentModificationException
+            }
+        }
+    }
+
+    private void enemigosDisparan() {
+        for (Enemigo e : enemigos) {
+            // Disparan si están alineados en fila o columna con la nave (línea recta)
+            if (e.x == nave.x) {
+                int dir = (e.y < nave.y) ? 1 : -1; // disparar abajo o arriba
+                disparosEnemigos.add(new Disparo(e.x, e.y + dir, 0, dir));
+            } else if (e.y == nave.y) {
+                int dir = (e.x < nave.x) ? 1 : -1; // disparar derecha o izquierda
+                disparosEnemigos.add(new Disparo(e.x + dir, e.y, dir, 0));
+            }
+        }
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        if (nave.vida <= 0 || enemigos.isEmpty()) {
+            repaint();
+            return;
+        }
+
+        // Mover disparos nave
+        Iterator<Disparo> it = disparos.iterator();
+        while (it.hasNext()) {
+            Disparo d = it.next();
+            d.x += d.dx;
+            d.y += d.dy;
+            if (d.x < 0 || d.x >= COLS || d.y < 0 || d.y >= FILAS) {
+                it.remove();
+                continue;
+            }
+            // Checar colisión con enemigos
+            Iterator<Enemigo> itE = enemigos.iterator();
+            boolean disparoEliminado = false;
+            while (itE.hasNext()) {
+                Enemigo en = itE.next();
+                if (en.x == d.x && en.y == d.y) {
+                    itE.remove();
+                    it.remove();
+                    disparoEliminado = true;
+                    break;
+                }
+            }
+            if (disparoEliminado) continue;
+        }
+
+        // Mover disparos enemigos
+        Iterator<Disparo> itEnem = disparosEnemigos.iterator();
+        while (itEnem.hasNext()) {
+            Disparo d = itEnem.next();
+            d.x += d.dx;
+            d.y += d.dy;
+            if (d.x < 0 || d.x >= COLS || d.y < 0 || d.y >= FILAS) {
+                itEnem.remove();
+                continue;
+            }
+            // Checar colisión con nave
+            if (d.x == nave.x && d.y == nave.y) {
+                nave.vida--;
+                itEnem.remove();
+                System.out.println("La nave recibió un disparo enemigo! Vida: " + nave.vida);
+            }
+        }
+
+        repaint();
+    }
+
+    @Override
+    public void keyReleased(KeyEvent e) {}
+    @Override
+    public void keyTyped(KeyEvent e) {}
+
+    static class Nave {
+        int x, y;
+        int vida = 3;
+        int direccion = 0; // 0=arriba,1=derecha,2=abajo,3=izquierda
+
+        public Nave(int x, int y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    static class Enemigo {
+        int x, y;
+
+        public Enemigo(int x, int y) {
+            this.x = x;
+            this.y = y;
+        }
+    }
+
+    static class Disparo {
+        int x, y;
+        int dx, dy;
+
+        public Disparo(int x, int y, int dx, int dy) {
+            this.x = x;
+            this.y = y;
+            this.dx = dx;
+            this.dy = dy;
+        }
+    }
+
+    public static void main(String[] args) {
+        JFrame frame = new JFrame("Juego de Naves Mejorado");
+        JuegoDeNavesSwing juego = new JuegoDeNavesSwing();
+        frame.add(juego);
+        frame.pack();
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setLocationRelativeTo(null);
+        frame.setVisible(true);
+    }
+}
+
+
+
+v3
+
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.Random;
+
+public class JuegoDeNavesConMenu extends JFrame {
+
+    private JuegoPanel juegoPanel;
+    private InfoPanel infoPanel;
+
+    public JuegoDeNavesConMenu() {
+        setTitle("Juego de Naves con Menú");
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+        setLayout(new BorderLayout());
+
+        juegoPanel = new JuegoPanel();
+        infoPanel = new InfoPanel(juegoPanel);
+
+        add(juegoPanel, BorderLayout.CENTER);
+        add(infoPanel, BorderLayout.EAST);
+
+        setJMenuBar(crearMenu());
+
+        pack();
+        setLocationRelativeTo(null);
+        setVisible(true);
+
+        juegoPanel.setInfoPanel(infoPanel);
+    }
+
+    private JMenuBar crearMenu() {
+        JMenuBar menuBar = new JMenuBar();
+
+        JMenu menuJuego = new JMenu("Juego");
+
+        JMenuItem iniciar = new JMenuItem("Iniciar Juego");
+        iniciar.addActionListener(e -> {
+            juegoPanel.iniciarJuego();
+            infoPanel.actualizar();
+        });
+
+        JMenuItem salir = new JMenuItem("Salir");
+        salir.addActionListener(e -> System.exit(0));
+
+        menuJuego.add(iniciar);
+        menuJuego.addSeparator();
+        menuJuego.add(salir);
+
+        menuBar.add(menuJuego);
+
+        return menuBar;
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(JuegoDeNavesConMenu::new);
+    }
+}
+
+// Panel principal donde corre el juego
+class JuegoPanel extends JPanel implements KeyListener, ActionListener {
+
+    static final int FILAS = 10;
+    static final int COLS = 10;
+    static final int TILE_SIZE = 40;
+
+    Nave nave;
+    ArrayList<Enemigo> enemigos = new ArrayList<>();
+    ArrayList<Disparo> disparos = new ArrayList<>();
+    ArrayList<Disparo> disparosEnemigos = new ArrayList<>();
+
+    Timer timer;         // refresco general
+    Timer timerEnemigos; // mover y disparar enemigos
+
+    Random rand = new Random();
+
+    InfoPanel infoPanel;
+
+    boolean juegoTerminado = false;
+
+    public JuegoPanel() {
+        setPreferredSize(new Dimension(COLS * TILE_SIZE, FILAS * TILE_SIZE));
+        setBackground(Color.BLACK);
+        setFocusable(true);
+        addKeyListener(this);
+
+        iniciarJuego();
+
+        timer = new Timer(100, this);
+        timer.start();
+
+        timerEnemigos = new Timer(1000, e -> {
+            if (!juegoTerminado) {
+                moverEnemigos();
+                enemigosDisparan();
+                repaint();
+                infoPanel.actualizar();
+            }
+        });
+        timerEnemigos.start();
+    }
+
+    public void setInfoPanel(InfoPanel ip) {
+        this.infoPanel = ip;
+    }
+
+    public void iniciarJuego() {
+        nave = new Nave(COLS / 2, FILAS / 2);
+        enemigos.clear();
+        disparos.clear();
+        disparosEnemigos.clear();
+        juegoTerminado = false;
+
+        for (int i = 0; i < 5; i++) {
+            int ex, ey;
+            do {
+                ex = rand.nextInt(COLS);
+                ey = rand.nextInt(FILAS);
+            } while ((ex == nave.x && ey == nave.y) || enemigoEnPosicion(ex, ey));
+            enemigos.add(new Enemigo(ex, ey));
+        }
+        requestFocusInWindow();
+        repaint();
+        if(infoPanel != null) infoPanel.actualizar();
+    }
+
+    private boolean enemigoEnPosicion(int x, int y) {
+        for (Enemigo e : enemigos) {
+            if (e.x == x && e.y == y) return true;
+        }
+        return false;
+    }
+
+    @Override
+    public void paintComponent(Graphics g) {
+        super.paintComponent(g);
+
+        // Dibujar rejilla
+        g.setColor(Color.GRAY);
+        for (int i = 0; i <= FILAS; i++) {
+            g.drawLine(0, i * TILE_SIZE, COLS * TILE_SIZE, i * TILE_SIZE);
+        }
+        for (int i = 0; i <= COLS; i++) {
+            g.drawLine(i * TILE_SIZE, 0, i * TILE_SIZE, FILAS * TILE_SIZE);
+        }
+
+        // Dibujar enemigos
+        g.setColor(Color.RED);
+        for (Enemigo e : enemigos) {
+            g.fillOval(e.x * TILE_SIZE + 8, e.y * TILE_SIZE + 8, TILE_SIZE - 16, TILE_SIZE - 16);
+        }
+
+        // Dibujar disparos enemigos
+        g.setColor(Color.ORANGE);
+        for (Disparo d : disparosEnemigos) {
+            g.fillRect(d.x * TILE_SIZE + TILE_SIZE / 3, d.y * TILE_SIZE + TILE_SIZE / 3, TILE_SIZE / 3, TILE_SIZE / 3);
+        }
+
+        // Dibujar disparos nave
+        g.setColor(Color.YELLOW);
+        for (Disparo d : disparos) {
+            g.fillRect(d.x * TILE_SIZE + TILE_SIZE / 3, d.y * TILE_SIZE + TILE_SIZE / 3, TILE_SIZE / 3, TILE_SIZE / 3);
+        }
+
+        // Dibujar nave con orientación
+        drawNave(g, nave.x, nave.y, nave.direccion);
+
+        // Mensajes final juego
+        if (juegoTerminado) {
+            g.setColor(Color.WHITE);
+            g.setFont(new Font("Arial", Font.BOLD, 28));
+            String mensaje = (nave.vida <= 0) ? "GAME OVER" : "¡GANASTE!";
+            g.drawString(mensaje, COLS * TILE_SIZE / 3, FILAS * TILE_SIZE / 2);
+        }
+    }
+
+    private void drawNave(Graphics g, int x, int y, int direccion) {
+        int cx = x * TILE_SIZE + TILE_SIZE / 2;
+        int cy = y * TILE_SIZE + TILE_SIZE / 2;
+        int size = TILE_SIZE / 2;
+
+        Polygon p = new Polygon();
+        switch (direccion) {
+            case 0:
+                p.addPoint(cx, cy - size / 2);
+                p.addPoint(cx - size / 2, cy + size / 2);
+                p.addPoint(cx + size / 2, cy + size / 2);
+                break;
+            case 1:
+                p.addPoint(cx + size / 2, cy);
+                p.addPoint(cx - size / 2, cy - size / 2);
+                p.addPoint(cx - size / 2, cy + size / 2);
+                break;
+            case 2:
+                p.addPoint(cx, cy + size / 2);
+                p.addPoint(cx - size / 2, cy - size / 2);
+                p.addPoint(cx + size / 2, cy - size / 2);
+                break;
+            case 3:
+                p.addPoint(cx - size / 2, cy);
+                p.addPoint(cx + size / 2, cy - size / 2);
+                p.addPoint(cx + size / 2, cy + size / 2);
+                break;
+        }
+        g.setColor(Color.CYAN);
+        g.fillPolygon(p);
+    }
+
+    @Override
+    public void keyPressed(KeyEvent e) {
+        if (juegoTerminado) return;
+
+        int key = e.getKeyCode();
+
+        int nx = nave.x;
+        int ny = nave.y;
+
+        if (key == KeyEvent.VK_LEFT) {
+            nx = Math.max(0, nave.x - 1);
+        } else if (key == KeyEvent.VK_RIGHT) {
+            nx = Math.min(COLS - 1, nave.x + 1);
+        } else if (key == KeyEvent.VK_UP) {
+            ny = Math.max(0, nave.y - 1);
+        } else if (key == KeyEvent.VK_DOWN) {
+            ny = Math.min(FILAS - 1, nave.y + 1);
+        } else if (key == KeyEvent.VK_Q) {
+            nave.direccion = (nave.direccion + 3) % 4;
+        } else if (key == KeyEvent.VK_E) {
+            nave.direccion = (nave.direccion + 1) % 4;
+        } else if (key == KeyEvent.VK_SPACE) {
+            int dx = 0, dy = 0;
+            switch (nave.direccion) {
+                case 0: dy = -1; break;
+                case 1: dx = 1; break;
+                case 2: dy = 1; break;
+                case 3: dx = -1; break;
+            }
+            int disparoX = nave.x + dx;
+            int disparoY = nave.y + dy;
+            if (disparoX >= 0 && disparoX < COLS && disparoY >= 0 && disparoY < FILAS) {
+                disparos.add(new Disparo(disparoX, disparoY, dx, dy));
+            }
+        }
+
+        if (nx != nave.x || ny != nave.y) {
+            nave.x = nx;
+            nave.y = ny;
+            Iterator<Enemigo> it = enemigos.iterator();
+            while (it.hasNext()) {
+                Enemigo enem = it.next();
+                if (enem.x == nave.x && enem.y == nave.y) {
+                    nave.vida -= 1;
+                    it.remove();
+                }
+            }
+        }
+
+        repaint();
+        infoPanel.actualizar();
+        verificarFin();
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        // Movimiento de disparos nave
+        Iterator<Disparo> it = disparos.iterator();
+        while (it.hasNext()) {
+            Disparo d = it.next();
+            d.x += d.dx;
+            d.y += d.dy;
+
+            if (d.x < 0 || d.x >= COLS || d.y < 0 || d.y >= FILAS) {
+                it.remove();
+                continue;
+            }
+
+            // Colisión con enemigo
+            Iterator<Enemigo> enemIt = enemigos.iterator();
+            boolean impacto = false;
+            while (enemIt.hasNext()) {
+                Enemigo enem = enemIt.next();
+                if (enem.x == d.x && enem.y == d.y) {
+                    enemIt.remove();
+                    it.remove();
+                    impacto = true;
+                    break;
+                }
+            }
+            if (impacto) {
+                infoPanel.actualizar();
+                verificarFin();
+            }
+        }
+
+        // Movimiento disparos enemigos
+        Iterator<Disparo> itE = disparosEnemigos.iterator();
+        while (itE.hasNext()) {
+            Disparo d = itE.next();
+            d.x += d.dx;
+            d.y += d.dy;
+
+            if (d.x < 0 || d.x >= COLS || d.y < 0 || d.y >= FILAS) {
+                itE.remove();
+                continue;
+            }
+
+            // Colisión con nave
+            if (d.x == nave.x && d.y == nave.y) {
+                nave.vida--;
+                itE.remove();
+                infoPanel.actualizar();
+                verificarFin();
+            }
+        }
+
+        repaint();
+    }
+
+    private void moverEnemigos() {
+        for (Enemigo e : enemigos) {
+            int dir = rand.nextInt(4);
+            int nx = e.x;
+            int ny = e.y;
+            switch (dir) {
+                case 0: ny = Math.max(0, e.y - 1); break;
+                case 1: nx = Math.min(COLS - 1, e.x + 1); break;
+                case 2: ny = Math.min(FILAS - 1, e.y + 1); break;
+                case 3: nx = Math.max(0, e.x - 1); break;
+            }
+            // evitar que se pisen enemigos
+            boolean ocupado = false;
+            for (Enemigo en : enemigos) {
+                if (en != e && en.x == nx && en.y == ny) {
+                    ocupado = true;
+                    break;
+                }
+            }
+            if (!ocupado && !(nx == nave.x && ny == nave.y)) {
+                e.x = nx;
+                e.y = ny;
+            }
+        }
+    }
+
+    private void enemigosDisparan() {
+        for (Enemigo e : enemigos) {
+            // Disparo aleatorio, 30% probabilidad
+            if (rand.nextDouble() < 0.3) {
+                int dx = 0, dy = 0;
+                // Disparan hacia nave si está en línea recta, si no disparan al azar
+                if (e.x == nave.x) {
+                    dy = (nave.y > e.y) ? 1 : -1;
+                } else if (e.y == nave.y) {
+                    dx = (nave.x > e.x) ? 1 : -1;
+                } else {
+                    // disparo random
+                    int d = rand.nextInt(4);
+                    switch(d) {
+                        case 0: dy = -1; break;
+                        case 1: dx = 1; break;
+                        case 2: dy = 1; break;
+                        case 3: dx = -1; break;
+                    }
+                }
+                int px = e.x + dx;
+                int py = e.y + dy;
+                if (px >= 0 && px < COLS && py >= 0 && py < FILAS) {
+                    disparosEnemigos.add(new Disparo(px, py, dx, dy));
+                }
+            }
+        }
+    }
+
+    private void verificarFin() {
+        if (nave.vida <= 0) {
+            juegoTerminado = true;
+            detenerTimers();
+            mostrarFin("Perdiste. ¿Quieres reiniciar?");
+        } else if (enemigos.isEmpty()) {
+            juegoTerminado = true;
+            detenerTimers();
+            mostrarFin("¡Ganaste! ¿Quieres reiniciar?");
+        }
+    }
+
+    private void detenerTimers() {
+        timer.stop();
+        timerEnemigos.stop();
+    }
+
+    private void mostrarFin(String mensaje) {
+        int opcion = JOptionPane.showConfirmDialog(this, mensaje, "Fin del Juego",
+                JOptionPane.YES_NO_OPTION);
+        if (opcion == JOptionPane.YES_OPTION) {
+            iniciarJuego();
+            timer.start();
+            timerEnemigos.start();
+        } else {
+            System.exit(0);
+        }
+    }
+
+    // No usamos estos métodos pero son obligatorios al implementar KeyListener
+    @Override
+    public void keyTyped(KeyEvent e) {}
+    @Override
+    public void keyReleased(KeyEvent e) {}
+}
+
+// Panel lateral para mostrar info
+class InfoPanel extends JPanel {
+    private JLabel vidaLabel;
+    private JLabel enemigosLabel;
+
+    private JuegoPanel juegoPanel;
+
+    public InfoPanel(JuegoPanel jp) {
+        this.juegoPanel = jp;
+        setPreferredSize(new Dimension(150, jp.FILAS * jp.TILE_SIZE));
+        setBackground(Color.DARK_GRAY);
+        setLayout(new GridLayout(5,1, 10, 10));
+
+        vidaLabel = new JLabel();
+        vidaLabel.setForeground(Color.WHITE);
+        vidaLabel.setFont(new Font("Arial", Font.BOLD, 16));
+
+        enemigosLabel = new JLabel();
+        enemigosLabel.setForeground(Color.WHITE);
+        enemigosLabel.setFont(new Font("Arial", Font.BOLD, 16));
+
+        add(new JLabel("")); // espacio
+        add(new JLabel("Estado:"));
+        add(vidaLabel);
+        add(enemigosLabel);
+        add(new JLabel(""));
+
+        actualizar();
+    }
+
+    public void actualizar() {
+        vidaLabel.setText("Vida: " + juegoPanel.nave.vida);
+        enemigosLabel.setText("Enemigos: " + juegoPanel.enemigos.size());
+    }
+}
+
+// Clases auxiliares
+class Nave {
+    int x, y;
+    int direccion; // 0=arriba,1=derecha,2=abajo,3=izquierda
+    int vida = 3;
+
+    public Nave(int x, int y) {
+        this.x = x;
+        this.y = y;
+        this.direccion = 0;
+    }
+}
+
+class Enemigo {
+    int x, y;
+    public Enemigo(int x, int y) {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+class Disparo {
+    int x, y;
+    int dx, dy;
+
+    public Disparo(int x, int y, int dx, int dy) {
+        this.x = x;
+        this.y = y;
+        this.dx = dx;
+        this.dy = dy;
+    }
+}
